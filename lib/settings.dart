@@ -31,16 +31,19 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   Future<void> saveSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString("link1", link1Controller.text);
-    await prefs.setString("link2", link2Controller.text);
-    await prefs.setString("sendvalue", statusController.text);
-    await prefs.setString("password", passwordController.text);
+  final prefs = await SharedPreferences.getInstance();
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text("Settings Saved")),
-    );
-  }
+  await prefs.setString("link1", link1Controller.text);
+  await prefs.setString("link2", link2Controller.text);
+  await prefs.setString("sendvalue", statusController.text);
+  await prefs.setString("password", passwordController.text);
+
+  if (!mounted) return;
+
+  ScaffoldMessenger.of(context).showSnackBar(
+    const SnackBar(content: Text("Settings Saved")),
+  );
+}
 
   @override
   Widget build(BuildContext context) {
