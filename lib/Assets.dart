@@ -48,7 +48,7 @@ Widget buildDrawer(BuildContext context) {
           Padding(
             padding: const EdgeInsets.only(bottom: 20),
             child: Text(
-              "Version 1.2.0",
+              "Version 1.3.0",
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 12,

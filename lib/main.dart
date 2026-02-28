@@ -7,12 +7,13 @@ import 'package:http/http.dart' as http;
 import 'Assets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-String statusLink="",updateLink="",password="",sendvalue="";
+String statusLink="",updateLink="",password="",sendvalue="",ipaddress="";
 
 Future<void> loadExisting() async {
     final prefs = await SharedPreferences.getInstance();
     statusLink = prefs.getString("link1") ?? "";
     updateLink = prefs.getString("link2") ?? "";
+    ipaddress = prefs.getString("ipaddress") ?? "";
     sendvalue = prefs.getString("sendvalue") ?? "";
     password = prefs.getString("password") ?? "";
   }
@@ -77,7 +78,7 @@ void dispose() {
   try {
     final res = await http.get(
       Uri.parse(
-        "${statusLink}?password=${password}",
+        "${statusLink}?password=${password}&ipaddress=${ipaddress}",
       ),
     );
 
@@ -111,7 +112,7 @@ void dispose() {
     });
     await http.get(
       Uri.parse(
-        "${updateLink}?password=${password}&${sendvalue}",
+        "${updateLink}?password=${password}&ipaddress=${ipaddress}&${sendvalue}",
       ),
     );
     
