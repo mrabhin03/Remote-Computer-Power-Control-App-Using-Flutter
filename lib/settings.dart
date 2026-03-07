@@ -15,7 +15,7 @@ class _SettingsPageState extends State<SettingsPage> {
   final link2Controller = TextEditingController();
   final statusController = TextEditingController();
   final passwordController = TextEditingController();
-  final ipaddressController = TextEditingController();
+  final MACaddressController = TextEditingController();
 
   @override
   void initState() {
@@ -27,7 +27,7 @@ class _SettingsPageState extends State<SettingsPage> {
     final prefs = await SharedPreferences.getInstance();
     link1Controller.text = prefs.getString("link1") ?? "";
     link2Controller.text = prefs.getString("link2") ?? "";
-    ipaddressController.text = prefs.getString("ipaddress") ?? "";
+    MACaddressController.text = prefs.getString("MACaddress") ?? "";
     statusController.text = prefs.getString("sendvalue") ?? "";
     passwordController.text = prefs.getString("password") ?? "";
   }
@@ -39,10 +39,10 @@ class _SettingsPageState extends State<SettingsPage> {
   await prefs.setString("link2", link2Controller.text);
   await prefs.setString("sendvalue", statusController.text);
   await prefs.setString("password", passwordController.text);
-  await prefs.setString("ipaddress", ipaddressController.text);
-
+  await prefs.setString("MACaddress", MACaddressController.text);
+  saveMACaddress(MACaddressController.text,link2Controller.text,passwordController.text);
   if (!mounted) return;
-
+  
   ScaffoldMessenger.of(context).showSnackBar(
     const SnackBar(content: Text("Settings Saved")),
   );
@@ -106,7 +106,7 @@ class _SettingsPageState extends State<SettingsPage> {
                 buildInputField(link2Controller, "Update URL"),
                 const SizedBox(height: 16),
 
-                buildInputField(ipaddressController, "IP Address"),
+                buildInputField(MACaddressController, "MAC Address"),
                 const SizedBox(height: 16),
 
                 buildInputField(statusController, "Boot status(Enter status=1)"),

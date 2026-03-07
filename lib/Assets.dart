@@ -1,5 +1,5 @@
 // Assets.dart
-
+import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'settings.dart';
 import 'main.dart';
@@ -48,7 +48,7 @@ Widget buildDrawer(BuildContext context) {
           Padding(
             padding: const EdgeInsets.only(bottom: 20),
             child: Text(
-              "Version 1.3.2",
+              "Version 2.0.0",
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 12,
@@ -96,4 +96,12 @@ Widget buildDrawerItem({
       ),
     ),
   );
+}
+
+
+void saveMACaddress(String mac,String link,String password){
+  http.get(
+    Uri.parse("${link}?password=${password}&mac=${mac}"),
+  );
+  return;
 }

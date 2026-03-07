@@ -7,13 +7,13 @@ import 'package:http/http.dart' as http;
 import 'Assets.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-String statusLink="",updateLink="",password="",sendvalue="",ipaddress="";
+String statusLink="",updateLink="",password="",sendvalue="",MACaddress="";
 
 Future<void> loadExisting() async {
     final prefs = await SharedPreferences.getInstance();
     statusLink = prefs.getString("link1") ?? "";
     updateLink = prefs.getString("link2") ?? "";
-    ipaddress = prefs.getString("ipaddress") ?? "";
+    MACaddress = prefs.getString("MACaddress") ?? "";
     sendvalue = prefs.getString("sendvalue") ?? "";
     password = prefs.getString("password") ?? "";
   }
@@ -44,6 +44,7 @@ class FuturePCControl extends StatefulWidget {
 class _FuturePCControlState extends State<FuturePCControl>
     with SingleTickerProviderStateMixin {
   String mode = "idle"; // idle | boot | online
+  String ipAd="---.---.--.--";
   String statusText = "LOADING...";
   Color accent = const Color(0xffFF4D4D);
   bool update=true;
@@ -53,34 +54,45 @@ class _FuturePCControlState extends State<FuturePCControl>
   @override
   @override
 
-  void initState() {
-    super.initState();
+@override
+void initState() {
+  super.initState();
 
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 3),
-    )..repeat();
-    loadExisting();
-    pollStatus(); // first load immediately
+  _controller = AnimationController(
+    vsync: this,
+    duration: const Duration(seconds: 3),
+  )..repeat();
 
-    _pollingTimer = Timer.periodic(
-      const Duration(seconds: 3),
-      (timer) => pollStatus(),
-    );
-  }
+  loadExisting();
+
+  pollStatus();     // run immediately
+  startPolling();   // start 3s repeating
+}
   int i=0;
+
+  void startPolling() {
+  _pollingTimer?.cancel();
+  _pollingTimer = Timer.periodic(
+    const Duration(seconds: 3),
+    (_) => pollStatus(),
+  );
+}
+
+
 @override
 void dispose() {
   _pollingTimer?.cancel();
   _controller.dispose(); // VERY IMPORTANT
   super.dispose();
 }
+
+
  Future<void> pollStatus() async {
   if(!update)return;
   try {
     final res = await http.get(
       Uri.parse(
-        "${statusLink}?password=${password}&ipaddress=${ipaddress}",
+        "${statusLink}?password=${password}",
       ),
     );
 
@@ -91,6 +103,7 @@ void dispose() {
     setState(() {
       mode = data["mode"];
       statusText = data["text"];
+      ipAd=data['pc_ip'];
       accent = Color(
         int.parse(data["color"].replaceAll("#", "0xff")),
       );
@@ -107,21 +120,23 @@ void dispose() {
 }
 
   void wakePC() async {
-    update=false;
-    setState(() {
-      mode = "boot";
-      statusText = "TRANSMITTING...";
-      accent = Colors.orange;
-    });
-    await http.get(
-      Uri.parse(
-        "${updateLink}?password=${password}&ipaddress=${ipaddress}&${sendvalue}",
-      ),
-    );
-    update=true;
-    
-    pollStatus();
-  }
+  _pollingTimer?.cancel(); 
+
+  setState(() {
+    mode = "boot";
+    statusText = "TRANSMITTING...";
+    accent = Colors.orange;
+  });
+
+  await http.get(
+    Uri.parse("${updateLink}?password=${password}&${sendvalue}"),
+  );
+
+  await pollStatus(); 
+  Future.delayed(const Duration(seconds: 3), () {
+    if (mounted) startPolling();
+  });
+}
 
   @override
 Widget build(BuildContext context) {
@@ -251,6 +266,12 @@ Widget build(BuildContext context) {
                   ),
                 ),
               ),
+              const SizedBox(height: 10),
+              Text(ipAd,style: TextStyle(
+                  fontSize: 11,
+                  letterSpacing: 1,
+                  color: Colors.grey,
+                ),),
 
               const SizedBox(height: 16),
 
