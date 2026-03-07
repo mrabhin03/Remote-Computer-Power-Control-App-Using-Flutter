@@ -46,6 +46,7 @@ class _FuturePCControlState extends State<FuturePCControl>
   String mode = "idle"; // idle | boot | online
   String statusText = "LOADING...";
   Color accent = const Color(0xffFF4D4D);
+  bool update=true;
 
   late AnimationController _controller;
   Timer? _pollingTimer;
@@ -75,6 +76,7 @@ void dispose() {
   super.dispose();
 }
  Future<void> pollStatus() async {
+  if(!update)return;
   try {
     final res = await http.get(
       Uri.parse(
@@ -85,7 +87,7 @@ void dispose() {
     if (!mounted) return; 
 
     final data = jsonDecode(res.body);
-
+    if(!update)return;
     setState(() {
       mode = data["mode"];
       statusText = data["text"];
@@ -105,6 +107,7 @@ void dispose() {
 }
 
   void wakePC() async {
+    update=false;
     setState(() {
       mode = "boot";
       statusText = "TRANSMITTING...";
@@ -115,6 +118,7 @@ void dispose() {
         "${updateLink}?password=${password}&ipaddress=${ipaddress}&${sendvalue}",
       ),
     );
+    update=true;
     
     pollStatus();
   }
