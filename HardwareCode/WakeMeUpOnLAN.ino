@@ -3,69 +3,82 @@
 #include <WiFiUdp.h>
 #include <ArduinoJson.h>
 #include <WiFiClientSecure.h>
+#include <ESP8266Ping.h>
+
+WiFiClientSecure secureClient;
+
 /* ================= CONFIG ================= */
 
-// WiFi
 const char* ssid     = "MY WIFI-2.4G";
 const char* password = "87654321";
 
-// Server
 const char* WAIT_URL = "https://palegreen-chough-695018.hostingersite.com/Wake/wait.php";
 
-// PC (Ethernet)
-IPAddress pcIP(192, 168, 20, 10);
-byte pcMAC[] = {0x50, 0x81, 0x40, 0x2C, 0x11, 0xDE};
-
-// Port to check PC online (Windows RDP)
+IPAddress broadcastIP(192,168,20,255);
 const int PC_PORT = 3389;
-
-/* ========================================== */
-
 WiFiUDP udp;
-void updatePcIpFromJson(String json) {
 
-  StaticJsonDocument<256> doc;
-  DeserializationError error = deserializeJson(doc, json);
+bool failWake=false;
+int failWakeCount=0;
 
-  if (error) {
-    Serial.println("JSON parse failed");
-    return;
-  }
+byte pcMAC[6];
+IPAddress pcIP(192,168,20,6);   // last known IP (default)
 
-  if (!doc.containsKey("pc_ip")) return;
+int lastStatus = -1;
 
-  const char* newIpStr = doc["pc_ip"];
-
-  IPAddress newIP;
-  if (!newIP.fromString(newIpStr)) {
-    Serial.println("Invalid IP from server");
-    return;
-  }
-
-  if (newIP != pcIP) {
-    Serial.print("PC IP changed → ");
-    Serial.println(newIpStr);
-    pcIP = newIP;
-  }
-}
 /* ---------- WIFI ---------- */
+
 void ensureWiFi() {
+
   if (WiFi.status() == WL_CONNECTED) return;
 
-  Serial.println("WiFi disconnected. Reconnecting...");
-  WiFi.begin(ssid, password);
+  Serial.println("Reconnecting WiFi...");
+
+  WiFi.begin(ssid,password);
 
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
-    Serial.print(".");
   }
 
-  Serial.println("\nWiFi connected");
-  Serial.print("NodeMCU IP: ");
-  Serial.println(WiFi.localIP());
+  Serial.println("WiFi connected");
 }
 
-/* ---------- PC STATUS ---------- */
+/* ---------- FIND PC BY RDP ---------- */
+
+bool findPcIP() {
+  if(isPcOnline()) return true;
+
+  WiFiClient client;
+  IPAddress local = WiFi.localIP();
+
+  Serial.println("Searching PC IP...");
+
+  for(int i=1;i<=20;i++) {
+
+    IPAddress test(local[0],local[1],local[2],i);
+
+    if(client.connect(test,PC_PORT)) {
+
+      client.stop();
+
+      pcIP = test;
+
+      Serial.print("PC found at ");
+      Serial.println(pcIP);
+
+      return true;
+    }
+
+    delay(30);
+  }
+
+  Serial.println("PC not found");
+
+  return false;
+}
+
+/* ---------- CHECK PC ONLINE ---------- */
+
 bool isPcOnline() {
   WiFiClient pcClient;
   pcClient.setTimeout(1000);
@@ -74,7 +87,7 @@ bool isPcOnline() {
   return ok;
 }
 
-/* ---------- WAIT FOR PC ---------- */
+
 bool waitForPcOnline(unsigned long timeoutMs) {
   unsigned long start = millis();
 
@@ -84,119 +97,174 @@ bool waitForPcOnline(unsigned long timeoutMs) {
   }
   return false;
 }
-
 /* ---------- WAKE ON LAN ---------- */
+
 void sendWakeOnLan() {
+
   byte packet[102];
-  memset(packet, 0xFF, 6);
 
-  for (int i = 1; i <= 16; i++) {
-    memcpy(&packet[i * 6], pcMAC, 6);
-  }
+  memset(packet,0xFF,6);
 
-  udp.beginPacket(IPAddress(255,255,255,255), 9);
-  udp.write(packet, sizeof(packet));
+  for(int i=1;i<=16;i++)
+    memcpy(&packet[i*6],pcMAC,6);
+
+  udp.beginPacket(broadcastIP,9);
+  udp.write(packet,sizeof(packet));
   udp.endPacket();
 
-  Serial.println("Wake-on-LAN packet sent");
+  Serial.println("Wake-on-LAN sent");
 }
-void updateStatusHTTPS(int status) {
+
+/* ---------- UPDATE STATUS ---------- */
+
+void updateStatusHTTPS(int status,int Mode=0) {
+  if(status == lastStatus && Mode==0) return;
+  lastStatus = status;
+
+  ensureWiFi();
+
+  HTTPClient http;
+  String url = "https://palegreen-chough-695018.hostingersite.com/Wake/update.php?status=" + String(status)+"&ipaddress="+pcIP.toString();
+  if (http.begin(secureClient, url)) {
+    int httpCode = http.GET();
+    if (httpCode > 0) {
+      Serial.printf("Status %d sent! Server response: %d\n", status, httpCode);
+    } else {
+      Serial.printf("Error: %s\n", http.errorToString(httpCode).c_str());
+    }
+    http.end();
+  } else {
+    Serial.println("Connection failed at http.begin");
+  }
+
+  delay(200);
+  yield();
+}
+
+/* ---------- PARSE SERVER JSON ---------- */
+
+void parseServer(String json) {
+  if(failWakeCount>4){
+    failWakeCount=0;
+    return;
+  }
+
+  StaticJsonDocument<256> doc;
+
+  if(deserializeJson(doc,json)) return;
+
+  if(doc["mac"]) {
+
+    const char* macStr = doc["mac"];
+
+    int values[6];
+
+    if(6==sscanf(macStr,"%x:%x:%x:%x:%x:%x",
+      &values[0],&values[1],&values[2],
+      &values[3],&values[4],&values[5])) {
+
+      for(int i=0;i<6;i++)
+        pcMAC[i] = (byte)values[i];
+
+    }
+  }
+
+  const char* status = doc["status"];
+
+  if((status && String(status)=="1")) {
+    wakeUpProcess();
+  }else if(String(status)=="0" && isPcOnline()){
+    Serial.println("System Already online");
+    findPcIP();
+    updateStatusHTTPS(3,1);
+    
+  }
+}
+
+
+void wakeUpProcess(){
+  updateStatusHTTPS(2);
+    Serial.println("Wake command received");
+
+    
+    delay(200);
+    for(int i=0;i<4;i++){
+      sendWakeOnLan();
+      Serial.println("Check Status");
+      if(waitForPcOnline(25000)){
+        updateStatusHTTPS(3);
+        Serial.println("Waked");
+        findPcIP();
+        return;
+      }
+      Serial.println("Wrong address");
+      findPcIP();
+    }
+}
+/* ---------- SERVER LONG POLL ---------- */
+
+void waitForCommand() {
+  String response;
   WiFiClientSecure client;
   client.setInsecure();
 
   HTTPClient http;
-  String url = "https://palegreen-chough-695018.hostingersite.com/Wake/update.php?status=" + String(status);
-
-  http.begin(client, url);
-  http.GET();
-  http.end();
-
-  Serial.print("Status updated → ");
-  Serial.println(status);
-}
-
-/* ---------- WAIT FOR COMMAND ---------- */
-void waitForCommandFromServer() {
-  
-  Serial.println("\nWaiting for server command...");
-
-  WiFiClientSecure client;
-  client.setInsecure();  // 🔑 allow HTTPS without cert
-
-  HTTPClient http;
-  if (!isPcOnline()) {
-    Serial.println("System Offline");
-    updateStatusHTTPS(0);
-  }else{
-    Serial.println("System Online");
-    updateStatusHTTPS(3);
-  }
-
+  Serial.println("Server request sended...");
   http.setTimeout(30000);
-  http.setReuse(false);   // do NOT reuse TLS socket
-  // ❌ DO NOT use HTTP/1.0 over HTTPS
 
-  if (!http.begin(client, WAIT_URL)) {
-    Serial.println("HTTPS begin failed");
+  if(!http.begin(client,WAIT_URL))
     return;
-  }
 
   int code = http.GET();
 
-  if (code == HTTP_CODE_OK) {
-    String response = http.getString();
-    Serial.print("Server response: ");
+  if(code == HTTP_CODE_OK) {
+    Serial.println("Server responded...");
+    response = http.getString();
+
     Serial.println(response);
 
-    // Update PC IP from JSON
-    updatePcIpFromJson(response);
-
-    // Check wake command
-    StaticJsonDocument<256> doc;
-    deserializeJson(doc, response);
-
-    const char* status = doc["status"];
-
-    if (status && String(status) == "1") {
-      Serial.println("WAKE command received");
-
-      if (!isPcOnline()) {
-        updateStatusHTTPS(2);
-        sendWakeOnLan();
-        if (waitForPcOnline(60000)) {
-          Serial.println("Waked");
-        }
-      }
-    }
-
-  } else {
-    Serial.print("HTTP error: ");
-    Serial.println(code);
+    
   }
 
   http.end();
+  parseServer(response);
 }
-
-
 
 /* ================= SETUP ================= */
 
 void setup() {
-  Serial.begin(115200);
-  delay(1000);
 
-  WiFi.setSleepMode(WIFI_NONE_SLEEP); // important for long polling
-  WiFi.begin(ssid, password);
+  Serial.begin(115200);
+
+  WiFi.setSleepMode(WIFI_NONE_SLEEP);
+
+  WiFi.begin(ssid,password);
 
   udp.begin(9);
 
-  Serial.println("NodeMCU booted");
-}
+  secureClient.setInsecure();
+  secureClient.setBufferSizes(512, 512);
 
+  Serial.println("NodeMCU started");
+}
 /* ================= LOOP ================= */
 
 void loop() {
-  ensureWiFi();                  // keep Wi-Fi alive
-  waitForCommandFromServer();    // long poll server
-  delay(1000);                   // small cooldown
+
+  ensureWiFi();
+
+  bool online = isPcOnline();
+
+  if(online){
+    updateStatusHTTPS(3);
+    Serial.println("System Online");
+  }
+  else{
+    updateStatusHTTPS(0);
+    Serial.println("System Offline");
+  }
+
+  waitForCommand();
+
+  delay(1200);
 }
