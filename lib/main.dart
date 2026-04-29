@@ -141,7 +141,7 @@ void dispose() {
   @override
 Widget build(BuildContext context) {
   bool spinning = mode == "boot";
-  bool disabled = mode == "boot" || mode == "online";
+  bool disabled = (!(mode == "idle"));
 
   return Scaffold(
     backgroundColor: const Color(0xff020409),

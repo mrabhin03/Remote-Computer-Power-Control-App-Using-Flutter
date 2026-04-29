@@ -3,7 +3,7 @@ import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
 import 'settings.dart';
 import 'main.dart';
-
+const String version="Version 2.0.5" ;
 Widget buildDrawer(BuildContext context) {
   return Drawer(
     backgroundColor: const Color(0xff141a23), 
@@ -48,7 +48,7 @@ Widget buildDrawer(BuildContext context) {
           Padding(
             padding: const EdgeInsets.only(bottom: 20),
             child: Text(
-              "Version 2.0.0",
+              version,
               style: TextStyle(
                 color: Colors.grey[400],
                 fontSize: 12,
