@@ -78,7 +78,7 @@ class _SettingsPageState extends State<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xff020409),
-      drawer: buildDrawer(context),
+      drawer: buildDrawer(context, current: DrawerPage.settings),
       appBar: AppBar(
         backgroundColor: Colors.transparent,
         elevation: 0,

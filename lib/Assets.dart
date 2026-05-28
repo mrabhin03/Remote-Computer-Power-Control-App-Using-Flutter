@@ -1,376 +1,350 @@
 // Assets.dart
 import 'package:http/http.dart' as http;
 import 'package:flutter/material.dart';
+import 'dart:math';
 import 'settings.dart';
 import 'main.dart';
 
-const String version = "Version 3.00.0";
-
-const Color bgColor = Color(0xff020409);
-const Color panelColor = Color(0xff0d1117);
-const Color cardColor = Color(0xff161c26);
-const Color borderColor = Color(0xff2a3545);
-const Color accentColor = Color(0xff4D8EFF);
+const String version   = "Version 3.01.0";
+const Color bgColor    = Color(0xff020409);
+const Color cardColor  = Color(0xff0a0f18);
+const Color accentColor= Color(0xff4D8EFF);
 const Color textAccent = Color(0xff88AAAA);
 
-Widget buildDrawer(BuildContext context) {
+enum DrawerPage { home, settings }
+
+Widget buildDrawer(
+  BuildContext context, {
+  DrawerPage current = DrawerPage.home,
+  SysState? liveState,
+}) {
+  final state  = liveState ?? SysState.idle;
+  final online = state == SysState.online;
+  final booting= state == SysState.booting || state == SysState.loading;
+  final error  = state == SysState.error;
+
+  final Color dotColor = online  ? const Color(0xff44ff88)
+                       : booting ? const Color(0xffffaa00)
+                       : error   ? const Color(0xffff4d4d)
+                                 : Colors.grey;
+
+  final String stateLabel = online  ? "ONLINE"
+                          : booting ? "CONNECTING"
+                          : error   ? "NO SIGNAL"
+                                    : "STANDBY";
+
+  final IconData orbIcon = online  ? Icons.computer_rounded
+                         : booting ? Icons.wifi_tethering_rounded
+                         : error   ? Icons.signal_wifi_statusbar_connected_no_internet_4_rounded
+                                   : Icons.power_settings_new_rounded;
+
   return Drawer(
     backgroundColor: bgColor,
-    child: Container(
-      decoration: const BoxDecoration(
-        gradient: RadialGradient(
-          center: Alignment(0, -0.8),
-          radius: 1.4,
-          colors: [
-            Color(0xff111927),
-            Color(0xff020409),
-          ],
-        ),
-      ),
-      child: SafeArea(
-        child: Column(
-          children: [
+    child: Stack(
+      children: [
 
-            // ───────────────── HEADER ─────────────────
-            const SizedBox(height: 32),
+        // Same dot-grid as main card bg
+        Positioned.fill(child: CustomPaint(painter: _DotGridPainter())),
 
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 20),
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: panelColor.withOpacity(0.9),
-                borderRadius: BorderRadius.circular(22),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.05),
-                  width: 1,
+        SafeArea(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+
+              const SizedBox(height: 28),
+
+              // ── HEADER ──────────────────────────────────
+              Container(
+                margin: const EdgeInsets.symmetric(horizontal: 18),
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 18),
+                decoration: BoxDecoration(
+                  color: const Color.fromRGBO(8, 12, 18, 0.92),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Colors.white.withOpacity(0.05), width: 1),
+                  boxShadow: [
+                    BoxShadow(color: accentColor.withOpacity(0.07), blurRadius: 40, spreadRadius: 4),
+                    const BoxShadow(color: Colors.black87, blurRadius: 20),
+                  ],
                 ),
-                boxShadow: [
-                  BoxShadow(
-                    color: accentColor.withOpacity(0.08),
-                    blurRadius: 30,
-                    spreadRadius: 4,
-                  ),
-                  const BoxShadow(
-                    color: Colors.black87,
-                    blurRadius: 24,
-                    spreadRadius: 2,
-                  ),
-                ],
-              ),
-              child: Row(
-                children: [
+                child: Row(
+                  children: [
 
-                  // ── Animated looking orb ──
-                  Container(
-                    width: 54,
-                    height: 54,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      gradient: RadialGradient(
-                        colors: [
-                          accentColor.withOpacity(0.35),
-                          const Color(0xff05080d),
+                    // Orb — same style as main page orb
+                    Container(
+                      width: 50, height: 50,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: const Color(0xff05080d),
+                        border: Border.all(color: dotColor.withOpacity(0.3), width: 1.5),
+                        boxShadow: [
+                          BoxShadow(color: dotColor.withOpacity(0.18), blurRadius: 16, spreadRadius: 1),
                         ],
                       ),
-                      border: Border.all(
-                        color: accentColor.withOpacity(0.25),
-                        width: 1,
+                      child: Center(
+                        child: Icon(orbIcon, color: dotColor.withOpacity(0.85), size: 22,
+                          shadows: [Shadow(color: dotColor.withOpacity(0.6), blurRadius: 8)],
+                        ),
                       ),
-                      boxShadow: [
-                        BoxShadow(
-                          color: accentColor.withOpacity(0.25),
-                          blurRadius: 18,
-                          spreadRadius: 2,
-                        ),
-                      ],
                     ),
-                    child: const Icon(
-                      Icons.computer_rounded,
-                      color: textAccent,
-                      size: 24,
-                    ),
-                  ),
 
-                  const SizedBox(width: 16),
+                    const SizedBox(width: 16),
 
-                  // ── Title ──
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-
-                        const Text(
-                          "REMOTE SYSTEM",
-                          style: TextStyle(
-                            color: textAccent,
-                            fontSize: 10,
-                            letterSpacing: 2.4,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-
-                        const SizedBox(height: 4),
-
-                        const Text(
-                          "My PC",
-                          style: TextStyle(
-                            color: Colors.white,
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                            letterSpacing: 1.2,
-                          ),
-                        ),
-
-                        const SizedBox(height: 6),
-
-                        Row(
-                          children: [
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: const BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: Color(0xff44ff88),
-                              ),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            "REMOTE SYSTEM INTERFACE",
+                            style: TextStyle(
+                              color: textAccent,
+                              fontSize: 8,
+                              letterSpacing: 2.5,
+                              fontWeight: FontWeight.w500,
                             ),
-                            const SizedBox(width: 6),
-                            Text(
-                              "CONNECTED INTERFACE",
-                              style: TextStyle(
-                                color: Colors.grey[700],
-                                fontSize: 9,
-                                letterSpacing: 1.4,
-                              ),
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            "My PC",
+                            style: TextStyle(
+                              color: Colors.white,
+                              fontSize: 17,
+                              fontWeight: FontWeight.w700,
+                              letterSpacing: 0.3,
                             ),
-                          ],
-                        ),
-                      ],
+                          ),
+                          const SizedBox(height: 6),
+                          Row(
+                            children: [
+                              Container(
+                                width: 5, height: 5,
+                                decoration: BoxDecoration(
+                                  shape: BoxShape.circle,
+                                  color: dotColor,
+                                  boxShadow: [BoxShadow(color: dotColor, blurRadius: 5)],
+                                ),
+                              ),
+                              const SizedBox(width: 6),
+                              Text(
+                                stateLabel,
+                                style: TextStyle(
+                                  color: dotColor.withOpacity(0.8),
+                                  fontSize: 9,
+                                  letterSpacing: 1.8,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                ],
-              ),
-            ),
-
-            const SizedBox(height: 28),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Divider(
-                color: Colors.white.withOpacity(0.06),
-                thickness: 1,
-              ),
-            ),
-
-            const SizedBox(height: 18),
-
-            // ───────────────── NAVIGATION ─────────────────
-            buildDrawerItem(
-              icon: Icons.home_rounded,
-              title: "HOME",
-              subtitle: "Remote control dashboard",
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (_, __, ___) =>
-                        const FuturePCControl(),
-                    transitionDuration: Duration.zero,
-                    reverseTransitionDuration: Duration.zero,
-                  ),
-                );
-              },
-            ),
-
-            buildDrawerItem(
-              icon: Icons.settings_rounded,
-              title: "SETTINGS",
-              subtitle: "System configuration",
-              onTap: () {
-                Navigator.pushReplacement(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (_, __, ___) =>
-                        const SettingsPage(),
-                    transitionDuration: Duration.zero,
-                    reverseTransitionDuration: Duration.zero,
-                  ),
-                );
-              },
-            ),
-
-            const Spacer(),
-
-            // ───────────────── FOOTER ─────────────────
-            Container(
-              margin: const EdgeInsets.symmetric(
-                horizontal: 20,
-                vertical: 20,
-              ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 18,
-                vertical: 16,
-              ),
-              decoration: BoxDecoration(
-                color: cardColor.withOpacity(0.7),
-                borderRadius: BorderRadius.circular(18),
-                border: Border.all(
-                  color: Colors.white.withOpacity(0.04),
+                  ],
                 ),
               ),
-              child: Row(
-                children: [
 
-                  Container(
-                    width: 34,
-                    height: 34,
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: accentColor.withOpacity(0.12),
+              const SizedBox(height: 24),
+
+              // ── Section label ────────────────────────────
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Row(
+                  children: [
+                    Text(
+                      "NAVIGATION",
+                      style: TextStyle(
+                        color: Colors.grey[700],
+                        fontSize: 9,
+                        letterSpacing: 2.5,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                    child: const Icon(
-                      Icons.memory_rounded,
-                      color: textAccent,
-                      size: 18,
+                    const SizedBox(width: 10),
+                    Expanded(child: Container(height: 1, color: Colors.white.withOpacity(0.05))),
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 10),
+
+              // ── Nav items ────────────────────────────────
+              buildDrawerItem(
+                icon: Icons.home_rounded,
+                title: "HOME",
+                subtitle: "Remote control dashboard",
+                active: current == DrawerPage.home,
+                onTap: () => Navigator.pushReplacement(context, PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const FuturePCControl(),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                )),
+              ),
+
+              buildDrawerItem(
+                icon: Icons.settings_rounded,
+                title: "SETTINGS",
+                subtitle: "System configuration",
+                active: current == DrawerPage.settings,
+                onTap: () => Navigator.pushReplacement(context, PageRouteBuilder(
+                  pageBuilder: (_, __, ___) => const SettingsPage(),
+                  transitionDuration: Duration.zero,
+                  reverseTransitionDuration: Duration.zero,
+                )),
+              ),
+
+              const Spacer(),
+
+              // ── Footer ───────────────────────────────────
+              Container(
+                margin: const EdgeInsets.fromLTRB(18, 0, 18, 24),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 13),
+                decoration: BoxDecoration(
+                  color: const Color.fromRGBO(8, 12, 18, 0.85),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(color: Colors.white.withOpacity(0.04)),
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      width: 30, height: 30,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: accentColor.withOpacity(0.07),
+                        border: Border.all(color: accentColor.withOpacity(0.12)),
+                      ),
+                      child: const Icon(Icons.memory_rounded, color: textAccent, size: 15),
                     ),
-                  ),
-
-                  const SizedBox(width: 12),
-
-                  Expanded(
-                    child: Column(
+                    const SizedBox(width: 12),
+                    Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-
-                        const Text(
-                          "SYSTEM BUILD",
-                          style: TextStyle(
-                            color: textAccent,
-                            fontSize: 9,
-                            letterSpacing: 2,
-                          ),
-                        ),
-
-                        const SizedBox(height: 3),
-
-                        Text(
-                          version,
-                          style: TextStyle(
-                            color: Colors.grey[500],
-                            fontSize: 11,
-                            letterSpacing: 1.2,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
+                        Text("SYSTEM BUILD",
+                          style: TextStyle(color: Colors.grey[700], fontSize: 8, letterSpacing: 2.2)),
+                        const SizedBox(height: 2),
+                        Text(version,
+                          style: TextStyle(color: Colors.grey[600], fontSize: 10, letterSpacing: 0.8,
+                            fontWeight: FontWeight.w500)),
                       ],
                     ),
-                  ),
-                ],
+                    const Spacer(),
+                    Text(
+                      "v3",
+                      style: TextStyle(
+                        color: accentColor.withOpacity(0.2),
+                        fontSize: 11,
+                        fontWeight: FontWeight.w800,
+                        letterSpacing: 1,
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
-      ),
+      ],
     ),
   );
 }
 
+// ── Nav item ──────────────────────────────────────────────────
 Widget buildDrawerItem({
   required IconData icon,
   required String title,
   required String subtitle,
   required VoidCallback onTap,
+  bool active = false,
 }) {
   return Padding(
-    padding: const EdgeInsets.symmetric(
-      horizontal: 18,
-      vertical: 6,
-    ),
+    padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 5),
     child: Material(
       color: Colors.transparent,
       child: InkWell(
-        borderRadius: BorderRadius.circular(18),
-        splashColor: accentColor.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(14),
+        splashColor: accentColor.withOpacity(0.05),
         highlightColor: Colors.transparent,
         onTap: onTap,
         child: Ink(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(18),
-            color: cardColor.withOpacity(0.9),
+            borderRadius: BorderRadius.circular(14),
+            color: active
+                ? accentColor.withOpacity(0.06)
+                : const Color.fromRGBO(8, 12, 18, 0.85),
             border: Border.all(
-              color: Colors.white.withOpacity(0.04),
-              width: 1,
+              color: active
+                  ? accentColor.withOpacity(0.22)
+                  : Colors.white.withOpacity(0.04),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: accentColor.withOpacity(0.03),
-                blurRadius: 18,
-                spreadRadius: 1,
-              ),
-            ],
+            boxShadow: active
+                ? [BoxShadow(color: accentColor.withOpacity(0.08), blurRadius: 20)]
+                : [],
           ),
           child: Padding(
-            padding: const EdgeInsets.symmetric(
-              horizontal: 18,
-              vertical: 16,
-            ),
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 13),
             child: Row(
               children: [
 
-                // ── Icon ──
                 Container(
-                  width: 42,
-                  height: 42,
+                  width: 38, height: 38,
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    color: accentColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(11),
+                    color: active
+                        ? accentColor.withOpacity(0.10)
+                        : Colors.white.withOpacity(0.03),
                     border: Border.all(
-                      color: accentColor.withOpacity(0.12),
+                      color: active
+                          ? accentColor.withOpacity(0.28)
+                          : Colors.white.withOpacity(0.06),
                     ),
                   ),
-                  child: Icon(
-                    icon,
-                    color: textAccent,
-                    size: 22,
+                  child: Icon(icon,
+                    color: active ? accentColor : textAccent,
+                    size: 18,
+                    shadows: active
+                        ? [Shadow(color: accentColor.withOpacity(0.6), blurRadius: 8)]
+                        : [],
                   ),
                 ),
 
-                const SizedBox(width: 16),
+                const SizedBox(width: 13),
 
-                // ── Text ──
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-
                       Text(
                         title,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 13,
+                        style: TextStyle(
+                          color: active ? Colors.white : Colors.white.withOpacity(0.7),
+                          fontSize: 11,
                           fontWeight: FontWeight.w700,
-                          letterSpacing: 1.5,
+                          letterSpacing: 1.8,
                         ),
                       ),
-
-                      const SizedBox(height: 4),
-
+                      const SizedBox(height: 2),
                       Text(
                         subtitle,
                         style: TextStyle(
-                          color: Colors.grey[600],
-                          fontSize: 11,
-                          letterSpacing: 0.8,
+                          color: Colors.grey[700],
+                          fontSize: 9,
+                          letterSpacing: 0.4,
                         ),
                       ),
                     ],
                   ),
                 ),
 
-                Icon(
-                  Icons.arrow_forward_ios_rounded,
-                  color: Colors.grey[700],
-                  size: 14,
-                ),
+                // Active: glowing bar. Inactive: dim chevron.
+                if (active)
+                  Container(
+                    width: 3, height: 24,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(2),
+                      color: accentColor,
+                      boxShadow: [BoxShadow(color: accentColor, blurRadius: 8)],
+                    ),
+                  )
+                else
+                  Icon(Icons.chevron_right_rounded, color: Colors.grey[800], size: 15),
               ],
             ),
           ),
@@ -380,14 +354,20 @@ Widget buildDrawerItem({
   );
 }
 
-void saveMACaddress(
-  String mac,
-  String link,
-  String password,
-) {
-  http.get(
-    Uri.parse(
-      "${link}?password=${password}&mac=${mac}",
-    ),
-  );
+void saveMACaddress(String mac, String link, String password) {
+  http.get(Uri.parse("$link?password=$password&mac=$mac"));
+}
+
+// ── Dot grid — same as main page ─────────────────────────────
+class _DotGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final p = Paint()..color = Colors.white.withOpacity(0.022);
+    for (double x = 0; x < size.width; x += 26) {
+      for (double y = 0; y < size.height; y += 26) {
+        canvas.drawCircle(Offset(x, y), 1.1, p);
+      }
+    }
+  }
+  @override bool shouldRepaint(_DotGridPainter o) => false;
 }
